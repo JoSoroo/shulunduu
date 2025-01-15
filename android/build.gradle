@@ -1,0 +1,27 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
+buildscript {
+    ext {
+        // Android Gradle Plugin Version
+        buildToolsVersion = "33.0.0"
+        minSdkVersion = 21
+        targetSdkVersion = 33
+        compileSdkVersion = 33
+    }
+}
