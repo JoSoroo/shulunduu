@@ -3,50 +3,90 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+
 class FullScreenImagePage extends StatefulWidget {
   final List<String> images;
-  final int initialIndex;
-  final double swapDuration; // Таймерын хугацаа
+  final int currentIndex;
+  final DateTime? nextSwapTime;
+  final VoidCallback onSwapImage;
+  final VoidCallback scheduleNextSwap;
 
-  const FullScreenImagePage({
-    Key? key,
+  FullScreenImagePage({
     required this.images,
-    required this.initialIndex,
-    required this.swapDuration, // Таймерын хугацааг хүлээн авна
-  }) : super(key: key);
+    required this.currentIndex,
+    this.nextSwapTime,
+    required this.onSwapImage,
+    required this.scheduleNextSwap,
+  });
 
   @override
   _FullScreenImagePageState createState() => _FullScreenImagePageState();
 }
 
 class _FullScreenImagePageState extends State<FullScreenImagePage> {
-  late int _currentIndex;
+  late int _currentIndex; // Дотоод индекс
+  Timer? _timer; // `late` биш, `null`-ээр эхлүүлнэ
   bool _isAppBarVisible = false;
-  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
-    _startTimer(); // Таймерыг эхлүүлнэ
+    _currentIndex = widget.currentIndex; // Эхний зургийн индексийг тохируулах
+    _scheduleNextSwap();
   }
+
+  void _scheduleNextSwap() {
+  // Хуучин таймер байгаа эсэхийг шалгана
+  if (_timer != null) {
+    _timer!.cancel(); // Хуучин таймерыг зогсооно
+    print('Хуучин таймерыг зогсоолоо.');
+  }
+  print('Etseg widget hugatsaag shinejleh');
+   widget.scheduleNextSwap(); 
+  DateTime now = DateTime.now();
+  print('Одоо цаг: $now');
+
+  if (widget.nextSwapTime != null) {
+    Duration delay = widget.nextSwapTime!.difference(now);
+    print('Дараагийн зураг солих хүртэлх хугацаа: ${delay.inSeconds} секунд');
+
+    // Хугацааны шалгалт
+    if (delay.isNegative) {
+      // Хэрэв солих хугацаа өнгөрсөн бол дараагийн солигдсон цагийг авч дахин хүлээх
+      print('Солих хугацаа өнгөрсөн байна. Таймер үүсгэхгүй.');
+      widget.scheduleNextSwap(); // Эцэг виджетийн дараагийн солихыг төлөвлөнө
+      return;
+    }
+
+    // Таймерыг нэг удаа тохируулна
+    _timer = Timer(delay, () {
+      print('Таймер ажиллаж дууслаа, зураг солигдоно.');
+      widget.onSwapImage(); // Эцэг виджетийн зураг солихыг дуудна
+      _swapImage(); // FullScreen доторх зургийг шинэчлэх      
+      // Дахин шинэ таймер тохируулна
+      _scheduleNextSwap();
+    });
+  } else {
+    // Хэрэв nextSwapTime байхгүй бол хурдан хугацаанд солигдох
+    print('nextSwapTime байхгүй байна. Солигдож дуусах цагын хүлээлт байхгүй.');
+  }
+}
+
+
 
   @override
   void dispose() {
-    _timer?.cancel();
+    if (_timer != null) {
+      _timer!.cancel(); // Таймер байгаа бол зогсооно
+    }
     super.dispose();
   }
 
-  void _startTimer() {
-    _timer?.cancel(); // Хуучин таймерыг зогсооно
-    _timer = Timer.periodic(
-      Duration(seconds: widget.swapDuration.toInt()), // Таймерыг үндсэн хугацаатай нэгтгэнэ
-      (timer) {
-        setState(() {
-          _currentIndex = (_currentIndex + 1) % widget.images.length;
-        });
-      },
-    );
+  void _swapImage() {
+    setState(() {
+      _currentIndex = (_currentIndex + 1) % widget.images.length;
+      print('FullScreen зургийн индекс солигдлоо: $_currentIndex');
+    });
   }
 
   void _toggleAppBarVisibility() {
