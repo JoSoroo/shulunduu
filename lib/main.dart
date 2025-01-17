@@ -44,9 +44,6 @@ class _ImageSwapScreen extends State<ImageSwapScreen> {
       _scheduleNextSwap(); // Зураг солихыг төлөвлөх
     }
   }
-
-  // Дараагийн солигдох цагийг тооцож, таймер тохируулах
-  // Дараагийн солигдох цагийг тооцож, таймер тохируулах
 // Зураг солигдох цагийг тохируулах
 void _scheduleNextSwap() {
   // Хуучин таймер байгаа эсэхийг шалгана
@@ -61,8 +58,8 @@ void _scheduleNextSwap() {
   DateTime nextSwap;
 
   // Өглөөний 10:35 болон шөнийн 10:36 цагийг тохируулах
-  DateTime morningSwap = DateTime(now.year, now.month, now.day, 11, 31);
-  DateTime midnightSwap = DateTime(now.year, now.month, now.day, 11, 32);
+  DateTime morningSwap = DateTime(now.year, now.month, now.day, 10, 00);
+  DateTime midnightSwap = DateTime(now.year, now.month, now.day, 23, 59);
 
   // Хэрэв одоо цаг 10:35-ээс өмнө бол өглөөний 10:35 цагийг тохируулах
   if (now.isBefore(morningSwap)) {
