@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'full_screen_image_page.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,132 +33,125 @@ class _ImageSwapScreen extends State<ImageSwapScreen> {
   int _currentIndex = 0;
   Timer? _timer;
   DateTime? _nextSwapTime;
-  bool _isAppBarVisible = true;
 
   @override
   void initState() {
     super.initState();
+    _loadImagesFromStorage(); // Апп нээгдэх үед зургийг ачаалах
     if (_images.isNotEmpty) {
       _scheduleNextSwap(); // Зураг солихыг төлөвлөх
     }
   }
-// Зураг солигдох цагийг тохируулах
-void _scheduleNextSwap() {
-  // Хуучин таймер байгаа эсэхийг шалгана
-  if (_timer != null) {
-    _timer!.cancel(); // Хуучин таймерыг зогсооно
-    print('Хуучин таймерыг зогсоолоо.');
+
+  Future<void> _loadImagesFromStorage() async {
+    print('loadaa loadimage duudagdlaa');
+    // Зөвшөөрөл авах
+    print('loadaa zowshoorol hvselee');
+    PermissionStatus status =
+        await Permission.storage.request(); // Хадгалалтын зөвшөөрлийг хүсэх
+    print('Зөвшөөрлийн хариу: $status');
+
+    if (status.isGranted) {
+      print('Зөвшөөрөл олгогдлоо.');
+      // File Manager-аас файлуудыг унших
+      Directory directory =
+          Directory('/storage/emulated/0/'); // Android root directory
+      List<FileSystemEntity> files = directory.listSync(recursive: true);
+      List<String> jpgFiles = files
+          .whereType<File>()
+          .where((file) =>
+              file.path.toLowerCase().endsWith('.png') ||
+              file.path.toLowerCase().endsWith('.jpg'))
+          .map((file) => file.path)
+          .toList();
+      print('loadaa $jpgFiles зурагууд');
+      String? morningImage = jpgFiles.firstWhere(
+        (path) => path.toLowerCase().contains('morning'),
+        orElse: () => '',
+      );
+      String? nightImage = jpgFiles.firstWhere(
+        (path) => path.toLowerCase().contains('night'),
+        orElse: () => '',
+      );
+      setState(() {
+        _images = jpgFiles; // Зургийн жагсаалтад нэмэх
+        if (_images.isNotEmpty) {
+          DateTime now = DateTime.now();
+          if (now.hour >= 10 && now.hour < 24) {
+            _currentImage = morningImage != '' ? morningImage : null;
+          } else {
+            _currentImage = nightImage != '' ? nightImage : null;
+          }
+        }
+        print('Ehnii zurag $_currentImage');
+        _scheduleNextSwap(); // Зураг солигдох цагийг төлөвлөх
+      });
+
+      print("Ачаалагдсан зургууд: $_images");
+    } else if (status.isDenied) {
+      print("Зөвшөөрөл татгалзсан.");
+    } else if (status.isPermanentlyDenied) {
+      print("Зөвшөөрөл бүрэн хаагдсан. Апп тохиргоог нээнэ.");
+      openAppSettings();
+    }
   }
 
-  DateTime now = DateTime.now();
-  print('Одоо цаг: $now');
+  // Зураг солигдох цагийг тохируулах
+  void _scheduleNextSwap() {
+    // Хуучин таймер байгаа эсэхийг шалгана
+    if (_timer != null) {
+      _timer!.cancel(); // Хуучин таймерыг зогсооно
+      print('Хуучин таймерыг зогсоолоо.');
+    }
 
-  DateTime nextSwap;
+    DateTime now = DateTime.now();
+    print('Одоо цаг: $now');
 
-  // Өглөөний 10:35 болон шөнийн 10:36 цагийг тохируулах
-  DateTime morningSwap = DateTime(now.year, now.month, now.day, 10, 00);
-  DateTime midnightSwap = DateTime(now.year, now.month, now.day, 23, 59);
+    DateTime nextSwap;
 
-  // Хэрэв одоо цаг 10:35-ээс өмнө бол өглөөний 10:35 цагийг тохируулах
-  if (now.isBefore(morningSwap)) {
-    nextSwap = morningSwap;
-    print('Солигдох цаг ${morningSwap}');
-  }
-  // Хэрэв одоо цаг 10:36-ээс өмнө бол шөнийн 10:36 цагийг тохируулах
-  else if (now.isBefore(midnightSwap)) {
-    nextSwap = midnightSwap;
-    print('Солигдох цаг ${midnightSwap}');
-  }
-  else {
-    // Хэрэв 10:36-с хойш бол маргаашийн өглөөний 10:35 цагт солигдох
-    nextSwap = morningSwap.add(Duration(days: 1));
-    print('Солигдох цаг маргааш ${morningSwap}');
-  }
+    DateTime morningSwap = DateTime(now.year, now.month, now.day, 10, 00);
+    DateTime midnightSwap = DateTime(now.year, now.month, now.day, 23, 58);
 
-  _nextSwapTime = nextSwap; // Солигдох цагийг хадгална
+    if (now.isBefore(morningSwap)) {
+      nextSwap = morningSwap;
+      print('Солигдох цаг ${morningSwap}');
+    } else if (now.isBefore(midnightSwap)) {
+      nextSwap = midnightSwap;
+      print('Солигдох цаг ${midnightSwap}');
+    } else {
+      DateTime tomorrow = now.add(Duration(days: 1));
+      nextSwap = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 10, 00);
+      print('Солигдох цаг маргааш: $nextSwap');
+    }
 
-  Duration delay = nextSwap.difference(now); // Дараагийн солих хүртэл хүлээлт
-  print('Дараагийн солигдох цагийн хүлээлтийн хугацаа: ${delay.inSeconds} секунд');
+    _nextSwapTime = nextSwap; // Солигдох цагийг хадгална
 
-  // Таймер үүсгэх
-  _timer = Timer(delay, () {
-    _swapImage(); // Зураг солигдоно
-    _scheduleNextSwap(); // Дараагийн солихыг төлөвлөнө
-  });
-}
+    Duration delay = nextSwap.difference(now); // Дараагийн солих хүртэл хүлээлт
+    print(
+        'Дараагийн солигдох цагийн хүлээлтийн хугацаа: ${delay.inSeconds} секунд');
 
-void _swapImage() {
-  if (_images.isNotEmpty) {
-    setState(() {
-      _currentIndex = (_currentIndex + 1) % _images.length; // Дараагийн зургийг авах
-      _currentImage = _images[_currentIndex]; // Дараагийн зураг
-      print('Зураг солигдлоо: $_currentImage');
+    // Таймер үүсгэх
+    _timer = Timer(delay, () {
+      _swapImage(); // Зураг солигдоно
+      _scheduleNextSwap(); // Дараагийн солихыг төлөвлөнө
     });
   }
-}
 
-  Future<void> _pickImages() async {
-  FilePickerResult? result = await FilePicker.platform.pickFiles(
-    type: FileType.image,
-    allowMultiple: true, // Олон зураг сонгохыг зөвшөөрнө
-  );
-
-  if (result != null) {
+  void _swapImage() {
+    DateTime now = DateTime.now();
     setState(() {
-      List<String> newImages = result.paths.where((path) => path != null).cast<String>().toList();
-      _images.addAll(newImages);
-
-      if (_currentImage == null && _images.isNotEmpty) {
-        _currentImage = _images.first;
-      }
-      print("Зураг сонгогдлоо: $_images");
-
-      // Зургийг сонгосны дараа цагийг дахин тохируулах
-      _scheduleNextSwap(); // Зураг сонгосон тохиолдолд солигдох цагийг дахин тооцох
-    });
-  } else {
-    print("Зураг сонгогдсонгүй");
-  }
-}
-
-  // Сонгосон зургийг устгах функц
-  void _deleteImage(String imagePath) {
-    setState(() {
-      _images.remove(imagePath);
-      if (_images.isNotEmpty) {
-        _currentImage = _images.first;
+      if (now.hour >= 10 && now.hour < 24) {
+        _currentImage = _images.firstWhere(
+          (path) => path.toLowerCase().contains('morning'),
+          orElse: () => _currentImage!,
+        );
       } else {
-        _currentImage = null;
+        _currentImage = _images.firstWhere(
+          (path) => path.toLowerCase().contains('night'),
+          orElse: () => _currentImage!,
+        );
       }
-    });
-  }
-
-  // Бүх зургийг устгах функц
-  void _deleteAllImages() {
-    setState(() {
-      _images.clear();
-      _currentImage = null;
-    });
-  }
-
-  void _viewImageFullScreen() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => FullScreenImagePage(
-        images: _images,                // Бүх зургуудыг дамжуулна
-        currentIndex: _currentIndex,    // Одоогийн зургийн индекс
-        nextSwapTime: _nextSwapTime,    // Дараагийн солигдох хугацаа
-        onSwapImage: _swapImage,        // Зураг солих функц
-        scheduleNextSwap: _scheduleNextSwap, // Таймерийг дахин тохируулах функц
-      ),
-    ),
-  );
-}
-
-  void _toggleAppBarVisibility() {
-    setState(() {
-      _isAppBarVisible = !_isAppBarVisible;
+      print('Зураг солигдлоо: $_currentImage');
     });
   }
 
@@ -168,51 +159,21 @@ void _swapImage() {
   Widget build(BuildContext context) {
     return Scaffold(
       body: GestureDetector(
-        onTap: _toggleAppBarVisibility,
         child: Stack(
           children: [
             Center(
-            child: _currentImage != null
-                ? Image.file(
-                    File(_currentImage!),
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                  )
-                : const Text(
-                    "Зураг оруулаагүй байна",
-                    style: TextStyle(fontSize: 18),
-                  ),
-          ),
-            if (_isAppBarVisible)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: AppBar(
-                  backgroundColor: Colors.black.withOpacity(0.5),
-                  title: Text("Image Swap"),
-                  automaticallyImplyLeading: true,
-                  actions: [
-                     /* if (_currentImage != null)
-                        IconButton(
-                          onPressed: _viewImageFullScreen,
-                          icon: Icon(Icons.fullscreen),
-                        ),*/
-                      IconButton(onPressed: _pickImages, icon: Icon(Icons.add_photo_alternate)),
-                      if (_currentImage != null)
-                        IconButton(
-                          onPressed: () => _deleteImage(_currentImage!), 
-                          icon: Icon(Icons.delete),
-                        ),
-                      if (_images.isNotEmpty)
-                        IconButton(
-                          onPressed: _deleteAllImages, 
-                          icon: Icon(Icons.delete_forever),
-                        ),
-                    ],
-                ),
-              ),
+              child: _currentImage != null
+                  ? Image.file(
+                      File(_currentImage!),
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                    )
+                  : const Text(
+                      "Зураг оруулаагүй байна",
+                      style: TextStyle(fontSize: 18),
+                    ),
+            ),
           ],
         ),
       ),
